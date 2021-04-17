@@ -1,0 +1,92 @@
+#!/bin/sh
+#SBATCH --job-name=Hanigan_VariantCall
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=60000
+#SBATCH --time=240:00:00
+cd $SLURM_SUBMIT_DIR
+
+module load bwa
+
+for f in *_1.fastq; do
+	bwa mem -t 8 ~/thanigan/1000Genomes/GRCh38_full_analysis_set_plus_decoy_hla $f ${f%_1.fastq}_2.fastq > ${f%_1.fastq}.sam
+done
+
+module load samtools
+for f in *.sam; do 
+    samtools view -bS $f | samtools sort $f > ${f%.sam}.sorted.bam
+done
+
+module load picard
+for f in *.sorted.bam; do
+    java -Xmx7000M -Djava.io.tmpdir=$PBSTMPDIR -jar $PICARD AddOrReplaceReadGroups \
+          I=$f \
+          O=${f%.sorted.bam}.final.bam \
+          RGLB=lib1 \
+          RGPL=illumina \
+          RGPU=unit1 \
+          RGSM=$f
+done
+module load gatk/4.0.11.0 
+for f in *.final.bam; do
+    gatk BaseRecalibrator \
+       -I $f \
+       -R ~/thanigan/star/GATK-hg38/Homo_sapiens_assembly38.fasta \
+       --known-sites ~/thanigan/star/1000G_phase1.snps.high_confidence.hg38.vcf.gz \
+       --known-sites ~/thanigan/star/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz \
+       -O ${f%.final.bam}.recal_data.table
+done
+
+module load gatk/4.0.11.0 
+for f in *.final.bam; do
+    gatk ApplyBQSR \
+       -R ~/thanigan/star/GATK-hg38/Homo_sapiens_assembly38.fasta \
+       -I $f \
+       --bqsr-recal-file ${f%.final.bam}.recal_data.table \
+       -O ${f%.final.bam}.Recal.bam
+done
+
+module load samtools
+for f in *.Recal.bam; do
+    samtools index $f ${f%.bam}.bai
+done
+module load gatk/4.0.11.0 
+for f in *.Recal.bam; do 
+    gatk Mutect2 \
+    -R ~/thanigan/star/GATK-hg38/Homo_sapiens_assembly38.fasta \
+    -I $f \
+    -I ~/thanigan/Sequencing/Resistant_Clones/fc-c662c8e5-11d4-4fbd-a5b3-6fa758fb5ee4/Scripps_Hanigan_WGS_DataDelivery_12samples/RP-2289/WGS/H460_Parental/v1/H460_Parental.Recal.bam \
+    -normal H460_Parental \
+    -tumor ${f%.Recal.bam}.sorted.bam \
+    -O ${f%.bam}.Mutect.vcf 
+done
+module load gatk/4.0.11.0 
+for f in *.Mutect.vcf; do
+    gatk VariantFiltration \
+    -R ~/thanigan/star/GATK-hg38/Homo_sapiens_assembly38.fasta \
+    -V $f \
+    -O ${f%.Mutect.vcf}.Mutect_filtered.vcf \
+    --cluster-window-size 35 \
+    --cluster-size 3 \
+    --filter-expression "FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0 || QD < 2.0 || DP < 33" \
+    --filter-name "My_SNP_Filter" 
+done
+module load gatk/4.0.11.0 
+for f in *.Mutect_filtered.vcf; do
+     gatk SelectVariants \
+     -R ~/thanigan/star/GATK-hg38/Homo_sapiens_assembly38.fasta \
+     -V $f \
+     --exclude-filtered \
+     -O ${f%.Mutect_filtered.vcf}.Mutect_subset.vcf
+done
+for f in *.Mutect_filtered.vcf; do
+
+
+module load vep
+for f in *.Mutect_BC.vcf.Mutect_filtered_BC.vcf; do 
+    vep -i $f -o ${f%.Mutect_BC.vcf.Mutect_filtered_BC.vcf}_Annotated.vcf --dir_cache /gpfs/group/databases/vep --offline --fasta ~/thanigan/star/GATK-hg38/Homo_sapiens_assembly38.fasta --vcf --check_existing --af --no_check_alleles --cache --coding_only # --fields "Gene,SYMBOL,Consequence,Protein_position,Co-located variation,Existing_variation,Amino_acids,AF,CLIN_SIG,PHENO,IMPACT" 
+done
+
+module load python/3.6.3
+python Intersec_Annotated_VCF_3_29-21.py
