@@ -19,17 +19,13 @@ from functools import reduce
 plt.rc('font', family='serif')
 plt.rc('axes', linewidth=2)
 plt.rc({"fontname":"Arial"})
-sns.set_style('white')
-sns.set_style('ticks')
-sns.set_context('notebook')
-
 import allel
 style.use('seaborn-muted')
 import os
-
 from glob import glob
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
-filenames = glob('*_fields.vcf')
+filenames = glob('*Annotated.vcf')
 
 dataframes = [allel.vcf_to_dataframe(f,fields=['calldata/GT','samples','variants/ALT','variants/CHROM','variants/FILTER', 'variants/ID', 'variants/POS', 'variants/QUAL', 'variants/REF','variants/CSQ']) for f in filenames]
 print(dataframes)
