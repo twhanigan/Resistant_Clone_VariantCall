@@ -82,7 +82,6 @@ for f in *.Mutect_filtered.vcf; do
 done
 for f in *.Mutect_filtered.vcf; do
 
-
 module load vep
 for f in *.Mutect_BC.vcf.Mutect_filtered_BC.vcf; do 
     vep -i $f -o ${f%.Mutect_BC.vcf.Mutect_filtered_BC.vcf}_Annotated.vcf --dir_cache /gpfs/group/databases/vep --offline --fasta ~/thanigan/star/GATK-hg38/Homo_sapiens_assembly38.fasta --vcf --check_existing --af --no_check_alleles --cache --coding_only # --fields "Gene,SYMBOL,Consequence,Protein_position,Co-located variation,Existing_variation,Amino_acids,AF,CLIN_SIG,PHENO,IMPACT" 
