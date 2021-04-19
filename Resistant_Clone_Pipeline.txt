@@ -63,14 +63,12 @@ for f in *.Recal.bam; do
 done
 module load gatk/4.0.11.0 
 for f in *.Mutect.vcf; do
-    gatk VariantFiltration \
-    -R ~/thanigan/star/GATK-hg38/Homo_sapiens_assembly38.fasta \
-    -V $f \
-    -O ${f%.Mutect.vcf}.Mutect_filtered.vcf \
-    --cluster-window-size 35 \
-    --cluster-size 3 \
-    --filter-expression "FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0 || QD < 2.0 || DP < 33" \
-    --filter-name "My_SNP_Filter" 
+    gatk FilterMutectCalls \
+      -R ~/thanigan/star/GATK-hg38/Homo_sapiens_assembly38.fasta \
+      -V $f \
+      --contamination-table contamination.table \
+      --tumor-segmentation segments.tsv \
+      -O ${f%.Mutect.vcf}.Mutect_filtered.vcf
 done
 module load gatk/4.0.11.0 
 for f in *.Mutect_filtered.vcf; do
